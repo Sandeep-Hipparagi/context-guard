@@ -391,3 +391,44 @@ async def test_single_turn_repeated_lines_compression():
     assert "[repeated 120 times]" in forwarded_content
     assert "ERROR: connection reset by peer" in forwarded_content
     assert len(forwarded_content.splitlines()) < 10
+
+
+def test_dashboard_endpoints():
+    """Verify GET / and GET /dashboard return 200 OK with HTML content."""
+    app = create_app()
+    with TestClient(app) as client:
+        # Test root endpoint
+        res_root = client.get("/")
+        assert res_root.status_code == 200
+        assert "text/html" in res_root.headers["content-type"]
+        assert "Context-Guard" in res_root.text
+        assert "Diagnostic Dashboard" in res_root.text
+
+        # Test /dashboard endpoint
+        res_dash = client.get("/dashboard")
+        assert res_dash.status_code == 200
+        assert "text/html" in res_dash.headers["content-type"]
+        assert "Context-Guard" in res_dash.text
+
+
+@pytest.mark.asyncio
+async def test_api_inspect_endpoint():
+    """Verify POST /api/inspect returns health report, state ledger, and telemetry headers."""
+    app = create_app()
+    request_messages = [
+        {"role": "user", "content": "Goal: Build a cache service. Never use eval."},
+        {"role": "assistant", "content": "Configuring Redis cache on port 6379."},
+    ]
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://testserver"
+    ) as client:
+        res = await client.post("/api/inspect", json={"messages": request_messages})
+
+    assert res.status_code == 200
+    assert res.headers["X-Context-Health-Status"] == "🟢 Healthy"
+    data = res.json()
+    assert "health_report" in data
+    assert "state_ledger" in data
+    assert "metrics" in data
+    assert data["health_report"]["status"] == "🟢 Healthy"

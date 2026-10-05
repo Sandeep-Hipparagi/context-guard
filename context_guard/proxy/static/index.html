@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Context-Guard — Live Diagnostic Dashboard</title>
+  <style>
+    :root {
+      --bg: #090d16;
+      --surface: #111827;
+      --surface-border: #1f2937;
+      --surface-hover: #1e293b;
+      --text: #f3f4f6;
+      --text-muted: #9ca3af;
+      --green: #10b981;
+      --green-bg: rgba(16, 185, 129, 0.12);
+      --yellow: #f59e0b;
+      --yellow-bg: rgba(245, 158, 11, 0.12);
+      --red: #ef4444;
+      --red-bg: rgba(239, 68, 68, 0.12);
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.5;
+      padding: 1.5rem;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    /* Header */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 2rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--surface-border);
+    }
+
+    .logo-group {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .logo-icon {
+      font-size: 2rem;
+      background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: -0.025em;
+    }
+
+    .badge-proxy {
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      padding: 0.25rem 0.6rem;
+      border-radius: 9999px;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .badge-proxy .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--green);
+    }
+
+    /* Top Metric Stats */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: 0.75rem;
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .stat-label {
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-weight: 600;
+    }
+
+    .stat-value {
+      font-size: 1.75rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .stat-subtext {
+      color: var(--text-muted);
+      font-size: 0.8rem;
+    }
+
+    /* Gauge bar */
+    .gauge-wrapper {
+      width: 100%;
+      height: 8px;
+      background: #1f2937;
+      border-radius: 9999px;
+      overflow: hidden;
+      margin-top: 0.25rem;
+    }
+
+    .gauge-fill {
+      height: 100%;
+      width: 0%;
+      transition: width 0.4s ease, background-color 0.4s ease;
+      background-color: var(--green);
+    }
+
+    /* Main Workspace Layout */
+    .workspace {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+    }
+
+    @media (max-width: 1024px) {
+      .workspace {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--surface-border);
+      border-radius: 0.75rem;
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .panel-title {
+      font-size: 1.1rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    /* Preset Buttons */
+    .preset-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      align-items: center;
+    }
+
+    .preset-label {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-right: 0.25rem;
+    }
+
+    button {
+      cursor: pointer;
+      font-family: inherit;
+      border: none;
+      outline: none;
+    }
+
+    .btn-preset {
+      background: var(--surface-border);
+      color: var(--text);
+      font-size: 0.8rem;
+      padding: 0.4rem 0.75rem;
+      border-radius: 0.375rem;
+      transition: all 0.15s ease;
+    }
+
+    .btn-preset:hover {
+      background: var(--surface-hover);
+      border-color: var(--text-muted);
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: white;
+      font-weight: 600;
+      padding: 0.75rem 1.25rem;
+      border-radius: 0.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      font-size: 0.95rem;
+      transition: background-color 0.15s ease;
+    }
+
+    .btn-primary:hover {
+      background: var(--accent-hover);
+    }
+
+    /* Editor */
+    textarea {
+      width: 100%;
+      height: 380px;
+      background: #0d1117;
+      color: #e6edf3;
+      border: 1px solid var(--surface-border);
+      border-radius: 0.5rem;
+      padding: 1rem;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      resize: vertical;
+      line-height: 1.45;
+    }
+
+    textarea:focus {
+      outline: 1px solid var(--accent);
+      border-color: var(--accent);
+    }
+
+    /* Failure Mode Badges */
+    .failure-modes {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .mode-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 0.75rem;
+      padding: 0.35rem 0.65rem;
+      border-radius: 0.375rem;
+      font-weight: 500;
+      border: 1px solid transparent;
+    }
+
+    .mode-badge.inactive {
+      background: #1f2937;
+      color: #6b7280;
+      border-color: #374151;
+    }
+
+    .mode-badge.active-yellow {
+      background: var(--yellow-bg);
+      color: var(--yellow);
+      border-color: rgba(245, 158, 11, 0.4);
+    }
+
+    .mode-badge.active-red {
+      background: var(--red-bg);
+      color: var(--red);
+      border-color: rgba(239, 68, 68, 0.4);
+    }
+
+    /* State Ledger & Output Viewer */
+    .output-box {
+      background: #0d1117;
+      border: 1px solid var(--surface-border);
+      border-radius: 0.5rem;
+      padding: 1rem;
+      font-family: var(--font-mono);
+      font-size: 0.85rem;
+      white-space: pre-wrap;
+      overflow-x: auto;
+      max-height: 380px;
+      color: #c9d1d9;
+    }
+
+    .tab-bar {
+      display: flex;
+      gap: 0.5rem;
+      border-bottom: 1px solid var(--surface-border);
+      padding-bottom: 0.5rem;
+    }
+
+    .tab-btn {
+      background: transparent;
+      color: var(--text-muted);
+      padding: 0.35rem 0.75rem;
+      font-size: 0.85rem;
+      border-radius: 0.375rem;
+      font-weight: 500;
+    }
+
+    .tab-btn.active {
+      background: var(--surface-border);
+      color: var(--text);
+    }
+
+    .evidence-list {
+      list-style: none;
+      margin-top: 0.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+
+    .evidence-item {
+      font-size: 0.8rem;
+      color: #e5e7eb;
+      background: rgba(255, 255, 255, 0.04);
+      padding: 0.4rem 0.6rem;
+      border-radius: 0.25rem;
+      border-left: 3px solid var(--yellow);
+    }
+
+    .evidence-item.red {
+      border-left-color: var(--red);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="logo-group">
+        <span class="logo-icon">🛡️</span>
+        <div>
+          <h1>Context-Guard</h1>
+          <p style="color: var(--text-muted); font-size: 0.85rem;">Dual-Layer Context Health Guardrail & State-Ledger Compressor</p>
+        </div>
+      </div>
+      <div class="badge-proxy">
+        <span class="dot"></span>
+        <span>Proxy Active (:8080)</span>
+      </div>
+    </header>
+
+    <!-- Top Metric Stats -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">Context Health Status</div>
+        <div class="stat-value" id="statusVal">🟢 Healthy</div>
+        <div class="gauge-wrapper">
+          <div class="gauge-fill" id="gaugeFill"></div>
+        </div>
+        <div class="stat-subtext" id="penaltySub">Penalty: 0 / 100</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-label">Token Compression</div>
+        <div class="stat-value" id="reductionPct">0.0%</div>
+        <div class="stat-subtext" id="tokensSaved">Tokens Saved: 0</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-label">Payload Size</div>
+        <div class="stat-value" id="tokenCounts">0 <span style="font-size: 0.9rem; color: var(--text-muted);">tokens</span></div>
+        <div class="stat-subtext" id="compressedTokens">Compressed: 0 tokens</div>
+      </div>
+
+      <div class="stat-card">
+        <div class="stat-label">Recommended Remediation</div>
+        <div class="stat-value" style="font-size: 1rem; font-weight: 500;" id="actionVal">Proceed as normal.</div>
+        <div class="stat-subtext" id="issueCount">Detected Issues: 0</div>
+      </div>
+    </div>
+
+    <!-- Active Failure Modes -->
+    <div style="margin-bottom: 1.5rem;">
+      <div style="font-size: 0.8rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; margin-bottom: 0.5rem;">
+        Failure Mode Diagnostics
+      </div>
+      <div class="failure-modes" id="modeBadges">
+        <span class="mode-badge inactive" id="badge-poisoning">☠️ Poisoning: Inactive</span>
+        <span class="mode-badge inactive" id="badge-distraction">🔁 Distraction: Inactive</span>
+        <span class="mode-badge inactive" id="badge-clash">⚡ Clash: Inactive</span>
+        <span class="mode-badge inactive" id="badge-confusion">🌫️ Confusion: Inactive</span>
+      </div>
+      <ul class="evidence-list" id="evidenceList" style="display: none;"></ul>
+    </div>
+
+    <!-- Main Workspace -->
+    <div class="workspace">
+      <!-- Left Panel: Playground Input -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">Interactive Context Buffer</div>
+        </div>
+
+        <div class="preset-bar">
+          <span class="preset-label">Presets:</span>
+          <button class="btn-preset" onclick="loadPreset('green')">🟢 Clean Chat</button>
+          <button class="btn-preset" onclick="loadPreset('yellow')">🟡 Repetitive Echo</button>
+          <button class="btn-preset" onclick="loadPreset('red')">🔴 Contradiction / Poisoning</button>
+        </div>
+
+        <textarea id="jsonInput" placeholder="Paste conversation JSON array here..."></textarea>
+
+        <button class="btn-primary" id="btnEvaluate" onclick="evaluateContext()">
+          <span>⚡ Evaluate & Compress Context</span>
+        </button>
+      </div>
+
+      <!-- Right Panel: State Ledger & Output Viewer -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">State Ledger & Diagnostics</div>
+        </div>
+
+        <div class="tab-bar">
+          <button class="tab-btn active" id="tabLedger" onclick="switchTab('ledger')">State Ledger</button>
+          <button class="tab-btn" id="tabPayload" onclick="switchTab('payload')">Compressed Payload</button>
+          <button class="tab-btn" id="tabRaw" onclick="switchTab('raw')">Raw Diagnostic JSON</button>
+        </div>
+
+        <div class="output-box" id="outputView">[ACTIVE CONTEXT STATE LEDGER]
+Pinned Goal: None
+Hard Constraints:
+- None
+Active State:
+- None
+Pending Action: None</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const PRESETS = {
+      green: [
+        {"role": "system", "content": "You are a senior systems engineer."},
+        {"role": "user", "content": "How do I configure pytest in pyproject.toml?"},
+        {"role": "assistant", "content": "Add [tool.pytest.ini_options] with asyncio_mode = 'auto' and testpaths = ['tests']."},
+        {"role": "user", "content": "Can you show an example?"},
+        {"role": "assistant", "content": "Here is an example:\n\n```toml\n[tool.pytest.ini_options]\nasyncio_mode = 'auto'\ntestpaths = ['tests']\n```"}
+      ],
+      yellow: [
+        {"role": "user", "content": "What is the status of the database optimization?"},
+        {"role": "assistant", "content": "I am currently reviewing the database configuration and indexing strategy. The indexes need to be evaluated based on query latency metrics."},
+        {"role": "user", "content": "Can you elaborate on the index metrics?"},
+        {"role": "assistant", "content": "I am currently reviewing the database configuration and indexing strategy. The indexes need to be evaluated based on query latency metrics."},
+        {"role": "user", "content": "What about query caching?"},
+        {"role": "assistant", "content": "I am currently reviewing the database configuration and indexing strategy. The indexes need to be evaluated based on query latency metrics."},
+        {"role": "user", "content": "What should we do next?"}
+      ],
+      red: [
+        {"role": "user", "content": "Scaffold a new microservice API for user authentication."},
+        {"role": "assistant", "content": "Here is your new service built with Flask:\n\nfrom flask import Flask\napp = Flask(__name__)"},
+        {"role": "user", "content": "No, don't use Flask, use FastAPI"},
+        {"role": "assistant", "content": "Here is the service using Flask:\n\nfrom flask import Flask\napp = Flask(__name__)\n@app.route('/users')\ndef users(): return []"},
+        {"role": "user", "content": "Stop doing that, I explicitly instructed no Flask."},
+        {"role": "assistant", "content": "Understood. Here is the Flask setup updated:\n\nfrom flask import Flask\napp = Flask(__name__)"}
+      ]
+    };
+
+    let latestResult = null;
+    let currentTab = 'ledger';
+
+    function loadPreset(type) {
+      const data = PRESETS[type];
+      document.getElementById('jsonInput').value = JSON.stringify(data, null, 2);
+      evaluateContext();
+    }
+
+    function switchTab(tab) {
+      currentTab = tab;
+      document.getElementById('tabLedger').classList.toggle('active', tab === 'ledger');
+      document.getElementById('tabPayload').classList.toggle('active', tab === 'payload');
+      document.getElementById('tabRaw').classList.toggle('active', tab === 'raw');
+      renderOutput();
+    }
+
+    function renderOutput() {
+      const out = document.getElementById('outputView');
+      if (!latestResult) {
+        out.textContent = "No inspection performed yet.";
+        return;
+      }
+      if (currentTab === 'ledger') {
+        out.textContent = latestResult.state_ledger_markdown || "No State Ledger generated (turn count within preservation threshold).";
+      } else if (currentTab === 'payload') {
+        out.textContent = JSON.stringify(latestResult.compressed_messages || latestResult.forwarded_messages, null, 2);
+      } else {
+        out.textContent = JSON.stringify(latestResult, null, 2);
+      }
+    }
+
+    async function evaluateContext() {
+      const inputEl = document.getElementById('jsonInput');
+      const btn = document.getElementById('btnEvaluate');
+      let messages;
+      try {
+        messages = JSON.parse(inputEl.value);
+        if (!Array.isArray(messages)) throw new Error("Input must be a JSON array of messages.");
+      } catch (err) {
+        alert("Invalid JSON: " + err.message);
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = "Evaluating...";
+
+      try {
+        const resp = await fetch('/api/inspect', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ messages: messages })
+        });
+
+        if (!resp.ok) {
+          throw new Error("HTTP error " + resp.status);
+        }
+
+        const data = await resp.json();
+        latestResult = data;
+        updateUI(data);
+      } catch (err) {
+        console.error(err);
+        alert("Evaluation failed: " + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "⚡ Evaluate & Compress Context";
+      }
+    }
+
+    function updateUI(data) {
+      const report = data.health_report || {};
+      const metrics = data.metrics || {};
+
+      // Health status
+      const statusEl = document.getElementById('statusVal');
+      const gauge = document.getElementById('gaugeFill');
+      const penaltySub = document.getElementById('penaltySub');
+      const score = report.penalty_score || 0;
+
+      statusEl.textContent = report.status || "🟢 Healthy";
+      penaltySub.textContent = `Penalty: ${score} / 100`;
+      gauge.style.width = Math.min(100, Math.max(0, score)) + "%";
+
+      if (score < 25) {
+        gauge.style.backgroundColor = "var(--green)";
+      } else if (score <= 60) {
+        gauge.style.backgroundColor = "var(--yellow)";
+      } else {
+        gauge.style.backgroundColor = "var(--red)";
+      }
+
+      // Metrics
+      document.getElementById('reductionPct').textContent = (metrics.token_reduction_pct || 0) + "%";
+      document.getElementById('tokensSaved').textContent = `Tokens Saved: ${metrics.tokens_saved || 0}`;
+      document.getElementById('tokenCounts').innerHTML = `${metrics.original_tokens || report.estimated_tokens || 0} <span style="font-size: 0.9rem; color: var(--text-muted);">tokens</span>`;
+      document.getElementById('compressedTokens').textContent = `Compressed: ${metrics.compressed_tokens || 0} tokens`;
+      document.getElementById('actionVal').textContent = report.recommended_action || "Proceed as normal.";
+
+      // Failure Modes
+      const issues = report.detected_issues || [];
+      document.getElementById('issueCount').textContent = `Detected Issues: ${issues.length}`;
+
+      const modes = ['poisoning', 'distraction', 'clash', 'confusion'];
+      modes.forEach(mode => {
+        const badge = document.getElementById(`badge-${mode}`);
+        const found = issues.find(i => i.mode === mode);
+        if (found) {
+          const colorClass = found.penalty >= 40 ? 'active-red' : 'active-yellow';
+          badge.className = `mode-badge ${colorClass}`;
+          badge.textContent = `⚠️ ${mode.toUpperCase()}: Penalty ${found.penalty}`;
+        } else {
+          badge.className = 'mode-badge inactive';
+          badge.textContent = `${mode.toUpperCase()}: Inactive`;
+        }
+      });
+
+      // Evidence
+      const evList = document.getElementById('evidenceList');
+      evList.innerHTML = '';
+      let hasEvidence = false;
+      issues.forEach(i => {
+        (i.evidence || []).forEach(ev => {
+          hasEvidence = true;
+          const li = document.createElement('li');
+          li.className = 'evidence-item' + (i.penalty >= 40 ? ' red' : '');
+          li.textContent = `[${i.mode.toUpperCase()}] ${ev}`;
+          evList.appendChild(li);
+        });
+      });
+      evList.style.display = hasEvidence ? 'flex' : 'none';
+
+      renderOutput();
+    }
+
+    // Initialize with green preset on load
+    window.addEventListener('DOMContentLoaded', () => {
+      loadPreset('green');
+    });
+  </script>
+</body>
+</html>

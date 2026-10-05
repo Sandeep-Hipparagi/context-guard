@@ -3,16 +3,20 @@
 import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any
 
 import httpx
 from fastapi import FastAPI, Request, Response
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 
 from context_guard.compressors import ContextCompressor
 from context_guard.core.models import HealthReport, HealthStatus
 from context_guard.evaluators import DeterministicEvaluator
 from context_guard.proxy.config import ProxyConfig
+
+STATIC_DIR = Path(__file__).parent / "static"
+INDEX_HTML_PATH = STATIC_DIR / "index.html"
 
 INTERVENTION_DIRECTIVE = (
     "[SYSTEM INTERVENTION - CONTEXT RECTIFICATION]\n"
@@ -66,6 +70,71 @@ def create_app(
     async def health() -> dict[str, str]:
         """Health check endpoint."""
         return {"status": "ok", "service": "context-guard"}
+
+    @app.get("/", response_class=HTMLResponse)
+    @app.get("/dashboard", response_class=HTMLResponse)
+    async def dashboard() -> HTMLResponse:
+        """Serve the interactive diagnostic visual dashboard."""
+        if INDEX_HTML_PATH.exists():
+            return HTMLResponse(content=INDEX_HTML_PATH.read_text(encoding="utf-8"))
+        return HTMLResponse(
+            content=(
+                "<!DOCTYPE html><html><body><h1>Context-Guard Dashboard</h1>"
+                "<p>Dashboard HTML not found.</p></body></html>"
+            ),
+            status_code=200,
+        )
+
+    @app.post("/api/inspect")
+    async def inspect_context(request: Request) -> Response:
+        """Inspect context health, extract state ledger, and compute compression."""
+        try:
+            body: dict[str, Any] = await request.json()
+        except Exception:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "error": {
+                        "message": "Invalid JSON body",
+                        "type": "invalid_request_error",
+                    }
+                },
+            )
+
+        messages = body.get("messages", [])
+        if not isinstance(messages, list):
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "error": {
+                        "message": "'messages' must be an array",
+                        "type": "invalid_request_error",
+                    }
+                },
+            )
+
+        pinned_constraints = body.get("pinned_constraints")
+        report = evaluator.evaluate(messages, pinned_constraints=pinned_constraints)
+        compressor = ContextCompressor(preserve_recent_turns=proxy_config.PRESERVE_RECENT_TURNS)
+        compressed = await compressor.compress(messages)
+        formatted = compressor.format_for_inference(compressed)
+        tokens_saved = max(0, compressed.original_tokens - compressed.compressed_tokens)
+
+        result = {
+            "health_report": report.model_dump(),
+            "state_ledger": compressed.state_ledger.model_dump(),
+            "state_ledger_markdown": compressed.state_ledger_markdown,
+            "compressed_messages": formatted,
+            "metrics": {
+                "original_tokens": compressed.original_tokens,
+                "compressed_tokens": compressed.compressed_tokens,
+                "tokens_saved": tokens_saved,
+                "compression_ratio": compressed.compression_ratio,
+                "token_reduction_pct": compressed.token_reduction_pct,
+            },
+        }
+        resp = JSONResponse(content=result)
+        return _inject_telemetry_headers(resp, report, tokens_saved)
 
     @app.post("/v1/chat/completions")
     async def chat_completions(request: Request) -> Response:
