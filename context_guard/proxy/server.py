@@ -118,7 +118,8 @@ def create_app(
             tokens_saved = max(0, compressed.original_tokens - compressed.compressed_tokens)
 
         # 3. Upstream Routing and Authorization
-        upstream_url = f"{proxy_config.UPSTREAM_BASE_URL}/chat/completions"
+        upstream_base = proxy_config.UPSTREAM_BASE_URL.rstrip("/")
+        upstream_url = f"{upstream_base}/chat/completions"
         auth_header = request.headers.get("authorization")
         if not auth_header and proxy_config.UPSTREAM_API_KEY:
             auth_header = f"Bearer {proxy_config.UPSTREAM_API_KEY}"
@@ -126,6 +127,18 @@ def create_app(
         headers = {"Content-Type": "application/json"}
         if auth_header:
             headers["Authorization"] = auth_header
+
+        referer = (
+            request.headers.get("http-referer")
+            or request.headers.get("referer")
+            or proxy_config.OPENROUTER_HTTP_REFERER
+        )
+        if referer:
+            headers["HTTP-Referer"] = referer
+
+        site_title = request.headers.get("x-title") or proxy_config.OPENROUTER_SITE_TITLE
+        if site_title:
+            headers["X-Title"] = site_title
 
         http_client: httpx.AsyncClient | None = getattr(request.app.state, "client", None)
         if http_client is None:

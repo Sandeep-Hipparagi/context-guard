@@ -9,9 +9,30 @@ class ProxyConfig(BaseModel):
     """Proxy server configuration options."""
 
     UPSTREAM_BASE_URL: str = Field(
-        default_factory=lambda: os.getenv("UPSTREAM_BASE_URL", "https://api.openai.com/v1")
+        default_factory=lambda: (
+            (
+                os.getenv("OPENAI_BASE_URL")
+                or os.getenv("UPSTREAM_BASE_URL")
+                or "https://openrouter.ai/api/v1"
+            )
+            .strip()
+            .rstrip("/")
+        ),
+        validate_default=True,
     )
-    UPSTREAM_API_KEY: str | None = Field(default_factory=lambda: os.getenv("UPSTREAM_API_KEY"))
+    UPSTREAM_API_KEY: str | None = Field(
+        default_factory=lambda: (
+            os.getenv("OPENROUTER_API_KEY")
+            or os.getenv("OPENAI_API_KEY")
+            or os.getenv("UPSTREAM_API_KEY")
+        )
+    )
+    OPENROUTER_HTTP_REFERER: str | None = Field(
+        default_factory=lambda: os.getenv("OPENROUTER_HTTP_REFERER") or os.getenv("HTTP_REFERER")
+    )
+    OPENROUTER_SITE_TITLE: str | None = Field(
+        default_factory=lambda: os.getenv("OPENROUTER_SITE_TITLE") or os.getenv("X_TITLE")
+    )
     CONTEXT_GUARD_HOST: str = Field(
         default_factory=lambda: os.getenv("CONTEXT_GUARD_HOST", "0.0.0.0")
     )
@@ -35,5 +56,5 @@ class ProxyConfig(BaseModel):
     @field_validator("UPSTREAM_BASE_URL")
     @classmethod
     def strip_trailing_slash(cls, v: str) -> str:
-        """Ensure upstream base URL does not have trailing slashes."""
-        return v.rstrip("/")
+        """Ensure upstream base URL does not have trailing slashes or whitespace."""
+        return v.strip().rstrip("/")

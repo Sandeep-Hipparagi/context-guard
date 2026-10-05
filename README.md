@@ -129,15 +129,17 @@ Context Guard natively implements the **Model Context Protocol (MCP)**, exposing
 
 ### Option B: Running as a Drop-in Reverse Proxy
 
-Run Context Guard in front of OpenAI, vLLM, Ollama, or any OpenAI-compatible API. Point your agent harness's `base_url` to `http://localhost:8080/v1`.
+Run Context Guard in front of OpenRouter, OpenAI, vLLM, Ollama, or any OpenAI-compatible API. By default, it routes to **OpenRouter** (`https://openrouter.ai/api/v1`), allowing you to use OpenRouter keys (`sk-or-v1-...`) and models like `openai/gpt-5-mini`.
+
+Point your agent harness or client's `base_url` to `http://localhost:8080/v1`.
 
 #### Running via CLI:
 ```bash
-# Set your upstream endpoint and API key
-export UPSTREAM_BASE_URL="https://api.openai.com/v1"
-export UPSTREAM_API_KEY="sk-..."
+# Configure OpenRouter (or override with any OpenAI-compatible upstream)
+export OPENAI_BASE_URL="https://openrouter.ai/api/v1"
+export OPENROUTER_API_KEY="sk-or-v1-..."
 
-# Launch the proxy
+# Launch the proxy (listening on 0.0.0.0:8080)
 uv run context-guard
 ```
 
@@ -155,14 +157,14 @@ curl http://localhost:8080/health
 ```python
 from openai import OpenAI
 
-# Simply redirect base_url to Context Guard
+# Point client to Context Guard reverse proxy
 client = OpenAI(
     base_url="http://localhost:8080/v1",
-    api_key="sk-...",  # forwarded to upstream
+    api_key="sk-or-v1-...",  # forwarded intact to OpenRouter
 )
 
 response = client.chat.completions.create(
-    model="gpt-4o",
+    model="openai/gpt-5-mini",
     messages=[
         {"role": "user", "content": "Build an API using FastAPI."},
         {"role": "assistant", "content": "Here is the implementation..."},

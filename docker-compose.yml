@@ -11,9 +11,13 @@ services:
     ports:
       - "8080:8080"
     environment:
-      # Upstream LLM Endpoint (e.g. OpenAI, Azure, vLLM, or Ollama)
-      - UPSTREAM_BASE_URL=${UPSTREAM_BASE_URL:-https://api.openai.com/v1}
-      - UPSTREAM_API_KEY=${UPSTREAM_API_KEY:-}
+      # Upstream LLM Endpoint (e.g. OpenRouter, OpenAI, vLLM, or Ollama)
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL:-https://openrouter.ai/api/v1}
+      - UPSTREAM_BASE_URL=${UPSTREAM_BASE_URL:-https://openrouter.ai/api/v1}
+      - UPSTREAM_API_KEY=${OPENROUTER_API_KEY:-${UPSTREAM_API_KEY:-}}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      - OPENROUTER_HTTP_REFERER=${OPENROUTER_HTTP_REFERER:-}
+      - OPENROUTER_SITE_TITLE=${OPENROUTER_SITE_TITLE:-Context Guard}
       # Proxy tuning
       - CONTEXT_GUARD_HOST=0.0.0.0
       - CONTEXT_GUARD_PORT=8080
