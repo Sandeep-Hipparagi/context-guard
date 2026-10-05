@@ -196,3 +196,33 @@ async def test_llm_extractor_fallback_on_error():
     assert isinstance(compressed.state_ledger, StateLedger)
     assert compressed.state_ledger.pinned_goal != ""
     assert any("never use md5" in c.lower() for c in compressed.state_ledger.hard_constraints)
+
+
+def test_collapse_repeated_lines_helper():
+    """Verify collapse_repeated_lines collapses 120 repeated error lines to 1 line + marker."""
+    from context_guard.compressors import collapse_repeated_lines
+
+    repeated_text = "\n".join(["ERROR: connection reset by peer"] * 120)
+    collapsed = collapse_repeated_lines(repeated_text)
+
+    expected = "ERROR: connection reset by peer\n[repeated 120 times]"
+    assert collapsed == expected
+
+
+@pytest.mark.asyncio
+async def test_single_turn_bloated_lines_compression():
+    """Verify single turn with 120 repeated lines is compressed and yields token reduction."""
+    compressor = ContextCompressor(preserve_recent_turns=3)
+
+    repeated_error = "\n".join(["ERROR: connection reset by peer"] * 120)
+    messages = [
+        {"role": "user", "content": repeated_error},
+    ]
+
+    compressed = await compressor.compress(messages)
+
+    assert compressed.compressed_tokens < compressed.original_tokens
+    assert compressed.token_reduction_pct > 80.0
+    assert len(compressed.recent_raw_turns) == 1
+    assert "[repeated 120 times]" in compressed.recent_raw_turns[0]["content"]
+    assert "ERROR: connection reset by peer" in compressed.recent_raw_turns[0]["content"]

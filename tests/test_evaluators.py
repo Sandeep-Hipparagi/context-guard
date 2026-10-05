@@ -245,3 +245,40 @@ def test_confusion_noise_ballooning():
     assert report.status == HealthStatus.YELLOW
     assert any(issue.mode == "confusion" for issue in report.detected_issues)
     assert report.penalty_score == 25
+
+
+def test_intra_message_redundancy_consecutive_repeated_lines():
+    """Verify single turn with 120 repeated error lines scores penalty 40 and YELLOW status."""
+    evaluator = DeterministicEvaluator()
+    repeated_content = "\n".join(["ERROR: connection reset by peer"] * 120)
+
+    messages = [
+        {"role": "user", "content": repeated_content},
+    ]
+
+    report = evaluator.evaluate(messages)
+    assert report.status == HealthStatus.YELLOW
+    assert report.penalty_score == 40
+    assert len(report.detected_issues) == 1
+    assert report.detected_issues[0].mode == "distraction"
+    assert "consecutive repeated lines" in report.detected_issues[0].evidence[0]
+    assert report.recommended_action == "Trigger background State-Ledger compression."
+
+
+def test_intra_message_redundancy_low_unique_ratio_over_200_tokens():
+    """Verify payload >200 tokens with unique/total line ratio <0.4 scores penalty 40."""
+    evaluator = DeterministicEvaluator()
+    # 20 lines alternating between 2 lines: unique ratio = 2/20 = 0.10 < 0.40, >200 tokens
+    line_a = "WARNING: [worker-node-alpha-42] High heap memory pressure detected in cache segment"
+    line_b = "WARNING: [worker-node-beta-17] Rebalance postponed awaiting leader lock release"
+    lines = [line_a if i % 2 == 0 else line_b for i in range(20)]
+    content = "\n".join(lines)
+
+    messages = [
+        {"role": "user", "content": content},
+    ]
+
+    report = evaluator.evaluate(messages)
+    assert report.status == HealthStatus.YELLOW
+    assert report.penalty_score == 40
+    assert any(issue.mode == "distraction" for issue in report.detected_issues)

@@ -44,6 +44,41 @@ def estimate_tokens_fast(messages: list[dict[str, Any]]) -> int:
     return max(0, (total_chars + 3) // 4)
 
 
+def collapse_repeated_lines(text: str, min_repeats: int = 3) -> str:
+    """Collapse consecutive repeated lines into a single line plus a repetition marker."""
+    if not text:
+        return ""
+    lines = text.splitlines()
+    if len(lines) < min_repeats:
+        return text
+
+    result: list[str] = []
+    i = 0
+    n = len(lines)
+    while i < n:
+        line = lines[i]
+        stripped = line.strip()
+        if not stripped:
+            result.append(line)
+            i += 1
+            continue
+
+        j = i + 1
+        while j < n and lines[j].strip() == stripped:
+            j += 1
+
+        count = j - i
+        if count >= min_repeats:
+            result.append(line)
+            result.append(f"[repeated {count} times]")
+            i = j
+        else:
+            result.append(line)
+            i += 1
+
+    return "\n".join(result)
+
+
 class ContextCompressor:
     """Adaptive Context Compressor using State Ledger extraction and turn preservation."""
 
@@ -79,7 +114,10 @@ class ContextCompressor:
 
         cleaned = STACK_TRACE_PATTERN.sub(_collapse_trace, cleaned)
 
-        # 3. Trim conversational pleasantries
+        # 3. Collapse repeated identical lines
+        cleaned = collapse_repeated_lines(cleaned)
+
+        # 4. Trim conversational pleasantries
         cleaned = PLEASANTRIES_PATTERN.sub("", cleaned).strip()
 
         return cleaned
@@ -153,18 +191,33 @@ class ContextCompressor:
             m.get("content", "") for m in system_messages if m.get("content")
         )
 
-        # Skip compression if conversation turns are within preservation limit
+        # Clean conversation turns with noise stripping and line collapsing
+        cleaned_conv = [
+            {"role": m.get("role", ""), "content": self.strip_noise(m.get("content", ""))}
+            for m in conv_turns
+        ]
+
+        # Skip ledger extraction if conversation turns are within preservation limit
         if len(conv_turns) <= self.preserve_recent_turns:
             ledger = existing_ledger or StateLedger(pinned_goal="")
+            temp_payload: list[dict[str, str]] = []
+            if system_directive:
+                temp_payload.append({"role": "system", "content": system_directive})
+            temp_payload.extend(cleaned_conv)
+            compressed_tokens = estimate_tokens_fast(temp_payload)
+
+            ratio = round(compressed_tokens / original_tokens, 4) if original_tokens > 0 else 1.0
+            reduction_pct = round(max(0.0, (1.0 - ratio) * 100), 2) if original_tokens > 0 else 0.0
+
             return CompressedContext(
                 system_directive=system_directive,
                 state_ledger=ledger,
                 state_ledger_markdown="",
-                recent_raw_turns=conv_turns,
+                recent_raw_turns=cleaned_conv,
                 original_tokens=original_tokens,
-                compressed_tokens=original_tokens,
-                compression_ratio=1.0,
-                token_reduction_pct=0.0,
+                compressed_tokens=compressed_tokens,
+                compression_ratio=ratio,
+                token_reduction_pct=reduction_pct,
             )
 
         # Split turns: older turns to compress, recent turns to preserve raw
@@ -174,6 +227,10 @@ class ContextCompressor:
         cleaned_older = [
             {"role": m.get("role", ""), "content": self.strip_noise(m.get("content", ""))}
             for m in older_turns
+        ]
+        cleaned_recent = [
+            {"role": m.get("role", ""), "content": self.strip_noise(m.get("content", ""))}
+            for m in recent_raw_turns
         ]
 
         # Extract updated state ledger
@@ -185,7 +242,7 @@ class ContextCompressor:
             system_directive=system_directive,
             state_ledger=ledger,
             state_ledger_markdown=ledger_markdown,
-            recent_raw_turns=recent_raw_turns,
+            recent_raw_turns=cleaned_recent,
             original_tokens=original_tokens,
             compressed_tokens=0,
             compression_ratio=1.0,
@@ -202,7 +259,7 @@ class ContextCompressor:
             system_directive=system_directive,
             state_ledger=ledger,
             state_ledger_markdown=ledger_markdown,
-            recent_raw_turns=recent_raw_turns,
+            recent_raw_turns=cleaned_recent,
             original_tokens=original_tokens,
             compressed_tokens=compressed_tokens,
             compression_ratio=ratio,

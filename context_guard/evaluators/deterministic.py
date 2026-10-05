@@ -330,6 +330,82 @@ class DeterministicEvaluator:
             )
         return None
 
+    def _check_intra_message_redundancy(
+        self,
+        normalized: list[dict[str, Any]],
+        estimated_tokens: int,
+    ) -> FailureModeDetail | None:
+        """Check 5: Intra-message redundancy (repeated lines or repetitive phrase density)."""
+        evidence: list[str] = []
+
+        for msg in normalized:
+            content = msg.get("content", "")
+            if not content or not isinstance(content, str):
+                continue
+
+            lines = [line.strip() for line in content.splitlines()]
+            non_empty_lines = [line for line in lines if line]
+
+            # 1. Repeated consecutive lines exceed 5
+            max_consecutive = 1
+            current_consecutive = 1
+            repeated_line = ""
+            for i in range(1, len(non_empty_lines)):
+                if non_empty_lines[i] == non_empty_lines[i - 1]:
+                    current_consecutive += 1
+                    if current_consecutive > max_consecutive:
+                        max_consecutive = current_consecutive
+                        repeated_line = non_empty_lines[i]
+                else:
+                    current_consecutive = 1
+
+            if max_consecutive > 5:
+                t_idx = msg.get("index", 0)
+                sample = repeated_line[:60] + ("..." if len(repeated_line) > 60 else "")
+                evidence.append(
+                    f"Turn {t_idx} has {max_consecutive} consecutive repeated lines: '{sample}'."
+                )
+
+            # 2. Unique lines / total lines < 0.4 on payloads over 200 tokens
+            msg_tokens = max(0, (len(content) + 3) // 4)
+            is_over_200 = estimated_tokens > 200 or msg_tokens > 200
+            if is_over_200 and len(non_empty_lines) >= 8:
+                unique_ratio = len(set(non_empty_lines)) / len(non_empty_lines)
+                if unique_ratio < 0.4:
+                    t_idx = msg.get("index", 0)
+                    evidence.append(
+                        f"Turn {t_idx} has low unique line ratio ({unique_ratio:.2f} < 0.40) "
+                        f"across {len(non_empty_lines)} lines."
+                    )
+
+            # 3. High repetitive phrase density inside individual message
+            words = self._extract_words(content)
+            if len(words) >= 40:
+                four_grams = list(zip(words, words[1:], words[2:], words[3:], strict=False))
+                counts: dict[tuple[str, ...], int] = {}
+                for gram in four_grams:
+                    counts[gram] = counts.get(gram, 0) + 1
+                    if counts[gram] >= 8:
+                        t_idx = msg.get("index", 0)
+                        gram_str = " ".join(gram)
+                        evidence.append(
+                            f"Turn {t_idx} contains repetitive phrase density: '{gram_str}' "
+                            f"repeated {counts[gram]} times."
+                        )
+                        break
+
+        if evidence:
+            return FailureModeDetail(
+                mode="distraction",
+                penalty=40,
+                description=(
+                    "Intra-message content redundancy detected: repeated lines or excessive "
+                    "phrase repetition within single turn."
+                ),
+                evidence=evidence,
+            )
+        return None
+
     def evaluate(
         self,
         messages: list[dict[str, str]],
@@ -341,22 +417,27 @@ class DeterministicEvaluator:
 
         detected_issues: list[FailureModeDetail] = []
 
-        # Check 1: Distraction / Repetition
+        # Check 1: Distraction / Repetition across turns
         distraction_issue = self._check_distraction(normalized)
         if distraction_issue:
             detected_issues.append(distraction_issue)
 
-        # Check 2: Poisoning / Error Propagation
+        # Check 2: Intra-message redundancy
+        intra_issue = self._check_intra_message_redundancy(normalized, estimated_tokens)
+        if intra_issue:
+            detected_issues.append(intra_issue)
+
+        # Check 3: Poisoning / Error Propagation
         poisoning_issue = self._check_poisoning(normalized)
         if poisoning_issue:
             detected_issues.append(poisoning_issue)
 
-        # Check 3: Clash / Directive Contradiction
+        # Check 4: Clash / Directive Contradiction
         clash_issue = self._check_clash(normalized, pinned_constraints)
         if clash_issue:
             detected_issues.append(clash_issue)
 
-        # Check 4: Confusion / Noise Ratio
+        # Check 5: Confusion / Noise Ratio
         confusion_issue = self._check_confusion(normalized, estimated_tokens)
         if confusion_issue:
             detected_issues.append(confusion_issue)

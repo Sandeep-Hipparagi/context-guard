@@ -339,3 +339,55 @@ async def test_groq_routing_and_auth_forwarding():
 
     # Verify Groq model identifier preserved
     assert captured_request["body"]["model"] == "llama-3.1-8b-instant"
+
+
+@pytest.mark.asyncio
+async def test_single_turn_repeated_lines_compression():
+    """Verify single turn with 120 repeated error lines triggers Degraded and collapses upstream."""
+    received_payload: dict[str, Any] = {}
+
+    def mock_handler(request: httpx.Request) -> httpx.Response:
+        nonlocal received_payload
+        received_payload = json.loads(request.content.decode("utf-8"))
+        return httpx.Response(
+            200,
+            json={
+                "id": "chatcmpl-collapsed",
+                "choices": [
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": "Identified repeated connection reset errors.",
+                        }
+                    }
+                ],
+            },
+            headers={"content-type": "application/json"},
+        )
+
+    mock_client = httpx.AsyncClient(transport=httpx.MockTransport(mock_handler))
+    config = ProxyConfig(UPSTREAM_BASE_URL="http://mock-upstream/v1")
+    app = create_app(config=config, client=mock_client)
+
+    repeated_error = "\n".join(["ERROR: connection reset by peer"] * 120)
+    request_messages = [
+        {"role": "user", "content": repeated_error},
+    ]
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://testserver"
+    ) as client:
+        res = await client.post(
+            "/v1/chat/completions",
+            json={"model": "llama-3.1-8b-instant", "messages": request_messages},
+        )
+
+    assert res.status_code == 200
+    assert res.headers["X-Context-Health-Status"] in ("🟡 Degraded", "🔴 Critical")
+    assert int(res.headers["X-Context-Tokens-Saved"]) > 0
+
+    # Verify forwarded payload contains collapsed content
+    forwarded_content = received_payload["messages"][0]["content"]
+    assert "[repeated 120 times]" in forwarded_content
+    assert "ERROR: connection reset by peer" in forwarded_content
+    assert len(forwarded_content.splitlines()) < 10

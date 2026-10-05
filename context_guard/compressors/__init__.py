@@ -1,6 +1,6 @@
 """Compressors module: Trimming strategies and State Ledger summarization."""
 
-from context_guard.compressors.engine import ContextCompressor
+from context_guard.compressors.engine import ContextCompressor, collapse_repeated_lines
 from context_guard.compressors.extractor import (
     BaseLedgerExtractor,
     HeuristicLedgerExtractor,
@@ -14,4 +14,5 @@ __all__ = [
     "ContextCompressor",
     "HeuristicLedgerExtractor",
     "LLMLedgerExtractor",
+    "collapse_repeated_lines",
 ]
