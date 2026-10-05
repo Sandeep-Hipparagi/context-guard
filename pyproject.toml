@@ -13,8 +13,8 @@ dependencies = [
 ]
 
 [project.scripts]
-context-guard-proxy = "context_guard.proxy.__main__:main"
-context-guard-mcp = "context_guard.mcp.__main__:main"
+context-guard = "context_guard.proxy.server:main"
+context-guard-mcp = "context_guard.mcp.server:main"
 
 
 [project.optional-dependencies]

@@ -187,3 +187,20 @@ def create_app(
 
 # Default app instance
 app = create_app()
+
+
+def main() -> None:
+    """Run Context Guard proxy using uvicorn."""
+    import uvicorn
+
+    config = ProxyConfig()
+    uvicorn.run(
+        "context_guard.proxy.server:app",
+        host=config.CONTEXT_GUARD_HOST,
+        port=config.CONTEXT_GUARD_PORT,
+        reload=False,
+    )
+
+
+if __name__ == "__main__":
+    main()

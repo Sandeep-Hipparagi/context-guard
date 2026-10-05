@@ -123,3 +123,17 @@ def context_audit(recent_turn_count: int = 5) -> str:
 def run_mcp_server(transport: Literal["stdio", "sse", "streamable-http"] = "stdio") -> None:
     """Run Context Guard MCP server."""
     mcp_server.run(transport=transport)
+
+
+def main() -> None:
+    """Run Context Guard MCP server entrypoint."""
+    import sys
+
+    transport = "stdio"
+    if "--sse" in sys.argv:
+        transport = "sse"
+    run_mcp_server(transport=transport)  # type: ignore[arg-type]
+
+
+if __name__ == "__main__":
+    main()

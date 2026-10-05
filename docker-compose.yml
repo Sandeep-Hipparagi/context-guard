@@ -1,0 +1,62 @@
+services:
+  # ==========================================
+  # Context Guard Reverse Proxy Service
+  # ==========================================
+  context-guard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: context-guard
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      # Upstream LLM Endpoint (e.g. OpenAI, Azure, vLLM, or Ollama)
+      - UPSTREAM_BASE_URL=${UPSTREAM_BASE_URL:-https://api.openai.com/v1}
+      - UPSTREAM_API_KEY=${UPSTREAM_API_KEY:-}
+      # Proxy tuning
+      - CONTEXT_GUARD_HOST=0.0.0.0
+      - CONTEXT_GUARD_PORT=8080
+      - PRESERVE_RECENT_TURNS=3
+      - AUTO_COMPRESS_YELLOW=true
+      - INTERVENTION_ON_RED=true
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8080/health')\""]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+  # =========================================================================
+  # Optional: Local-First Zero-Data-Leak Upstream Engine (Ollama / vLLM)
+  # Uncomment the block below to run fully offline without external API keys!
+  # =========================================================================
+  # ollama:
+  #   image: ollama/ollama:latest
+  #   container_name: context-guard-ollama
+  #   restart: unless-stopped
+  #   ports:
+  #     - "11434:11434"
+  #   volumes:
+  #     - ollama_data:/root/.ollama
+  #
+  # To route Context Guard through local Ollama:
+  # Set UPSTREAM_BASE_URL=http://ollama:11434/v1 in context-guard environment
+  # and add `depends_on: [ollama]`
+  #
+  # vllm:
+  #   image: vllm/vllm-openai:latest
+  #   container_name: context-guard-vllm
+  #   restart: unless-stopped
+  #   runtime: nvidia
+  #   ports:
+  #     - "8000:8000"
+  #   environment:
+  #     - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN:-}
+  #   command: ["--model", "mistralai/Mistral-7B-Instruct-v0.3", "--port", "8000"]
+  #
+  # To route Context Guard through local vLLM:
+  # Set UPSTREAM_BASE_URL=http://vllm:8000/v1 in context-guard environment
+
+# volumes:
+#   ollama_data:
