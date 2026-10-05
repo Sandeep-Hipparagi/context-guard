@@ -13,7 +13,7 @@ class ProxyConfig(BaseModel):
             (
                 os.getenv("OPENAI_BASE_URL")
                 or os.getenv("UPSTREAM_BASE_URL")
-                or "https://openrouter.ai/api/v1"
+                or "https://api.groq.com/openai/v1"
             )
             .strip()
             .rstrip("/")
@@ -22,10 +22,14 @@ class ProxyConfig(BaseModel):
     )
     UPSTREAM_API_KEY: str | None = Field(
         default_factory=lambda: (
-            os.getenv("OPENROUTER_API_KEY")
+            os.getenv("GROQ_API_KEY")
             or os.getenv("OPENAI_API_KEY")
+            or os.getenv("OPENROUTER_API_KEY")
             or os.getenv("UPSTREAM_API_KEY")
         )
+    )
+    DEFAULT_MODEL: str = Field(
+        default_factory=lambda: os.getenv("DEFAULT_MODEL", "llama-3.1-8b-instant")
     )
     OPENROUTER_HTTP_REFERER: str | None = Field(
         default_factory=lambda: os.getenv("OPENROUTER_HTTP_REFERER") or os.getenv("HTTP_REFERER")

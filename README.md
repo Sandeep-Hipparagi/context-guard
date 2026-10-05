@@ -129,15 +129,15 @@ Context Guard natively implements the **Model Context Protocol (MCP)**, exposing
 
 ### Option B: Running as a Drop-in Reverse Proxy
 
-Run Context Guard in front of OpenRouter, OpenAI, vLLM, Ollama, or any OpenAI-compatible API. By default, it routes to **OpenRouter** (`https://openrouter.ai/api/v1`), allowing you to use OpenRouter keys (`sk-or-v1-...`) and models like `openai/gpt-5-mini`.
+Run Context Guard in front of Groq, OpenRouter, OpenAI, vLLM, Ollama, or any OpenAI-compatible API. By default, it routes to **Groq** (`https://api.groq.com/openai/v1`), allowing you to use high-throughput Groq API keys (`gsk_...`) and models like `llama-3.1-8b-instant` or `llama-3.3-70b-versatile`.
 
 Point your agent harness or client's `base_url` to `http://localhost:8080/v1`.
 
 #### Running via CLI:
 ```bash
-# Configure OpenRouter (or override with any OpenAI-compatible upstream)
-export OPENAI_BASE_URL="https://openrouter.ai/api/v1"
-export OPENROUTER_API_KEY="sk-or-v1-..."
+# Configure Groq (or override with any OpenAI-compatible upstream)
+export OPENAI_BASE_URL="https://api.groq.com/openai/v1"
+export GROQ_API_KEY="gsk_..."
 
 # Launch the proxy (listening on 0.0.0.0:8080)
 uv run context-guard
@@ -160,11 +160,11 @@ from openai import OpenAI
 # Point client to Context Guard reverse proxy
 client = OpenAI(
     base_url="http://localhost:8080/v1",
-    api_key="sk-or-v1-...",  # forwarded intact to OpenRouter
+    api_key="gsk_...",  # forwarded intact to Groq
 )
 
 response = client.chat.completions.create(
-    model="openai/gpt-5-mini",
+    model="llama-3.1-8b-instant",
     messages=[
         {"role": "user", "content": "Build an API using FastAPI."},
         {"role": "assistant", "content": "Here is the implementation..."},

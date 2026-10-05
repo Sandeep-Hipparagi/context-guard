@@ -95,6 +95,9 @@ def create_app(
                 },
             )
 
+        if not body.get("model"):
+            body["model"] = proxy_config.DEFAULT_MODEL
+
         # 1. Run Context Health Evaluation
         report = evaluator.evaluate(messages)
         tokens_saved = 0

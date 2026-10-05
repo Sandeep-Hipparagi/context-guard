@@ -20,13 +20,14 @@ def test_health_check_endpoint():
         assert response.json() == {"status": "ok", "service": "context-guard"}
 
 
-def test_default_upstream_is_openrouter():
-    """Verify default upstream base URL is OpenRouter and trailing slashes are stripped."""
+def test_default_upstream_is_groq():
+    """Verify default upstream base URL is Groq and trailing slashes are stripped."""
     config = ProxyConfig()
-    assert config.UPSTREAM_BASE_URL == "https://openrouter.ai/api/v1"
+    assert config.UPSTREAM_BASE_URL == "https://api.groq.com/openai/v1"
+    assert config.DEFAULT_MODEL == "llama-3.1-8b-instant"
 
-    config_with_slash = ProxyConfig(UPSTREAM_BASE_URL="https://openrouter.ai/api/v1/")
-    assert config_with_slash.UPSTREAM_BASE_URL == "https://openrouter.ai/api/v1"
+    config_with_slash = ProxyConfig(UPSTREAM_BASE_URL="https://api.groq.com/openai/v1/")
+    assert config_with_slash.UPSTREAM_BASE_URL == "https://api.groq.com/openai/v1"
 
 
 def test_openai_base_url_env_override(monkeypatch):
@@ -278,3 +279,63 @@ async def test_openrouter_routing_and_header_forwarding():
 
     # Verify model parameter preserved
     assert captured_request["body"]["model"] == "openai/gpt-5-mini"
+
+
+@pytest.mark.asyncio
+async def test_groq_routing_and_auth_forwarding():
+    """Verify Groq API key, URL resolution, and default model handling."""
+    captured_request: dict[str, Any] = {}
+
+    def groq_mock_handler(request: httpx.Request) -> httpx.Response:
+        captured_request["url"] = str(request.url)
+        captured_request["headers"] = dict(request.headers)
+        captured_request["body"] = json.loads(request.content.decode("utf-8"))
+        return httpx.Response(
+            200,
+            json={
+                "id": "chatcmpl-groq-abc123",
+                "object": "chat.completion",
+                "model": "llama-3.1-8b-instant",
+                "choices": [
+                    {
+                        "index": 0,
+                        "message": {
+                            "role": "assistant",
+                            "content": "Hello from Groq llama-3.1-8b-instant!",
+                        },
+                        "finish_reason": "stop",
+                    }
+                ],
+            },
+            headers={"content-type": "application/json"},
+        )
+
+    # Use default Groq configuration with trailing slash in URL
+    mock_client = httpx.AsyncClient(transport=httpx.MockTransport(groq_mock_handler))
+    config = ProxyConfig(UPSTREAM_BASE_URL="https://api.groq.com/openai/v1/")
+    app = create_app(config=config, client=mock_client)
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://testserver"
+    ) as client:
+        res = await client.post(
+            "/v1/chat/completions",
+            json={
+                "model": "llama-3.1-8b-instant",
+                "messages": [{"role": "user", "content": "Hello Groq"}],
+            },
+            headers={"Authorization": "Bearer gsk_99999999999999999999"},
+        )
+
+    assert res.status_code == 200
+    assert res.json()["choices"][0]["message"]["content"] == "Hello from Groq llama-3.1-8b-instant!"
+    assert res.headers["X-Context-Health-Status"] == "🟢 Healthy"
+
+    # Verify upstream URL has no double slashes and targets Groq endpoint
+    assert captured_request["url"] == "https://api.groq.com/openai/v1/chat/completions"
+
+    # Verify Groq authorization header forwarded intact without being dropped or replaced
+    assert captured_request["headers"]["authorization"] == "Bearer gsk_99999999999999999999"
+
+    # Verify Groq model identifier preserved
+    assert captured_request["body"]["model"] == "llama-3.1-8b-instant"
