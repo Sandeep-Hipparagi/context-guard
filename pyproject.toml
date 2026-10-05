@@ -12,6 +12,11 @@ dependencies = [
     "mcp>=1.0.0",
 ]
 
+[project.scripts]
+context-guard-proxy = "context_guard.proxy.__main__:main"
+context-guard-mcp = "context_guard.mcp.__main__:main"
+
+
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0.0",
