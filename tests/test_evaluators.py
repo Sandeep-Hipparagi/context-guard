@@ -282,3 +282,111 @@ def test_intra_message_redundancy_low_unique_ratio_over_200_tokens():
     assert report.status == HealthStatus.YELLOW
     assert report.penalty_score == 40
     assert any(issue.mode == "distraction" for issue in report.detected_issues)
+
+
+def test_developer_turn_repeated_paths_and_stacktraces_remains_healthy():
+    """Verify developer turn with repeated Windows/POSIX paths & stack traces stays GREEN (<25)."""
+    evaluator = DeterministicEvaluator()
+
+    developer_content = (
+        "Here are the debug logs and terminal output from our build session:\n\n"
+        "DEBUG: [worker-1] Loaded config from C:\\Users\\developer\\workspace\\app\\config.yaml\n"
+        "DEBUG: [worker-2] Loaded config from C:\\Users\\developer\\workspace\\app\\config.yaml\n"
+        "DEBUG: [worker-3] Loaded config from C:\\Users\\developer\\workspace\\app\\config.yaml\n"
+        "DEBUG: [worker-4] Loaded config from C:\\Users\\developer\\workspace\\app\\config.yaml\n"
+        "INFO: Reading service stream from /var/log/app/service.log\n"
+        "INFO: Reading worker stream from /var/log/app/worker.log\n"
+        "INFO: Accessing file at file:///c:/Users/developer/workspace/app/config.yaml\n"
+        "INFO: Documentation available at https://docs.internal.company.com/service/routing\n"
+        "Traceback (most recent call last):\n"
+        '  File "C:\\Users\\developer\\workspace\\app\\main.py", line 42, in run\n'
+        "    service.start()\n"
+        '  File "C:\\Users\\developer\\workspace\\app\\net.py", line 18, in start\n'
+        "    sock.bind(('127.0.0.1', 8080))\n"
+        "OSError: [Errno 48] Address already in use\n\n"
+        "How can we configure fallback port handling in our config?"
+    )
+
+    assistant_content = (
+        "The OSError indicates port 8080 is already in use by another process. "
+        "You can configure a port fallback mechanism in `config.yaml` using dynamic port binding "
+        "or pass `--port 8081` as a command line argument."
+    )
+
+    messages = [
+        {"role": "user", "content": developer_content},
+        {"role": "assistant", "content": assistant_content},
+    ]
+
+    report = evaluator.evaluate(messages)
+    assert report.status == HealthStatus.GREEN
+    assert report.penalty_score < 25
+    assert not any(issue.mode == "distraction" for issue in report.detected_issues)
+
+
+def test_code_blocks_with_negative_directives_do_not_trigger_poisoning():
+    """Verify code blocks with negative directives ('don't use Flask') do not trigger poisoning."""
+    evaluator = DeterministicEvaluator()
+
+    # User message contains negative words and 'don't use Flask' inside code fences
+    user_turn = (
+        "Here is the architectural verification test suite I wrote:\n\n"
+        "```python\n"
+        "def test_framework_rules():\n"
+        "    # No, don't use Flask in this microservice\n"
+        "    code = Path('app.py').read_text()\n"
+        "    assert 'flask' not in code\n"
+        "    assert 'Flask' not in code\n"
+        "```\n\n"
+        "Does this assertion correctly verify that our code adheres to the guideline?"
+    )
+
+    # Assistant confirms and mentions Flask naturally in response to user's question
+    assistant_turn = (
+        "Yes, checking that 'flask' and 'Flask' are absent from app.py effectively verifies "
+        "that the microservice does not introduce Flask dependencies."
+    )
+
+    messages = [
+        {"role": "user", "content": user_turn},
+        {"role": "assistant", "content": assistant_turn},
+    ]
+
+    report = evaluator.evaluate(messages)
+    assert report.status == HealthStatus.GREEN
+    assert report.penalty_score == 0
+    assert not any(issue.mode == "poisoning" for issue in report.detected_issues)
+
+
+def test_normalization_and_prose_helpers_unit():
+    """Verify _normalize_text_for_entropy and _extract_conversational_prose work as expected."""
+    evaluator = DeterministicEvaluator()
+
+    # Test path and URL normalization
+    sample_text = (
+        "Logs at C:\\Users\\user\\test.log and /var/log/syslog, "
+        "see https://example.com/api/v1 and file:///c:/project/file.py."
+    )
+    normalized = evaluator._normalize_text_for_entropy(sample_text)
+    assert "<PATH>" in normalized
+    assert "<URL>" in normalized
+    assert "C:\\Users" not in normalized
+    assert "/var/log" not in normalized
+    assert "https://example.com" not in normalized
+
+    # Test conversational prose extraction (stripping code blocks and inline code)
+    prose_sample = (
+        "Please review this code:\n"
+        "```python\n"
+        "def test_fn():\n"
+        "    # No, don't use Flask\n"
+        "    pass\n"
+        "```\n"
+        "Also check `assert not error` in the test."
+    )
+    extracted_prose = evaluator._extract_conversational_prose(prose_sample)
+    assert "Please review this code:" in extracted_prose
+    assert "Also check in the test." in extracted_prose
+    assert "don't use Flask" not in extracted_prose
+    assert "def test_fn" not in extracted_prose
+    assert "assert not error" not in extracted_prose
