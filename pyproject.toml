@@ -1,5 +1,5 @@
 [project]
-name = "context-guard"
+name = "context-guards"
 version = "0.1.0"
 description = "Dual-layer Context Health Guardrail and Compression Engine for LLM agent harnesses."
 readme = "README.md"
@@ -14,7 +14,9 @@ dependencies = [
 
 [project.scripts]
 context-guard = "context_guard.proxy.server:main"
+context-guards = "context_guard.proxy.server:main"
 context-guard-mcp = "context_guard.mcp.server:main"
+context-guards-mcp = "context_guard.mcp.server:main"
 
 
 [project.optional-dependencies]
