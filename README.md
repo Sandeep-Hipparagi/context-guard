@@ -1,11 +1,13 @@
 # Context Guard
 
+[![PyPI version](https://img.shields.io/pypi/v/context-guards.svg?color=blue)](https://pypi.org/project/context-guards/)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-009688.svg)](https://fastapi.tiangolo.com)
 [![Model Context Protocol](https://img.shields.io/badge/MCP-2.0+-green.svg)](https://modelcontextprotocol.io)
+[![Docker](https://img.shields.io/badge/GHCR-Multi--Arch-blue?logo=docker)](https://github.com/Sandeep-Hipparagi/context-guard/pkgs/container/context-guard)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
-> **Dual-layer Context Health Guardrail and Adaptive State-Ledger Compression Engine for LLM Agent Harnesses.**
+> **Dual-layer Context Health Guardrail and Adaptive State-Ledger Compression Engine for LLM Agent Harnesses, IDEs, and Terminals.**
 
 ---
 
@@ -23,8 +25,9 @@ Autonomous LLM agents and multi-turn coding assistants frequently degrade over e
 - **Layer 2 (Adaptive State-Ledger Compressor)**: Strips ANSI noise, deep repetitive stack traces, and pleasantries, consolidating older conversation turns into a structured **Active State Ledger** while keeping recent raw turns intact.
 
 Context Guard can be deployed as:
-- A **FastAPI OpenAI-compatible reverse proxy** (`/v1/chat/completions`) with live streaming support.
-- A **Model Context Protocol (MCP) server** for Cursor, Claude Code, and AGY.
+- A **Model Context Protocol (MCP) server** for Cursor, Claude Desktop, Claude Code CLI, Windsurf, Zed, and VS Code.
+- A **FastAPI OpenAI-compatible reverse proxy** (`/v1/chat/completions`) with model discovery (`/v1/models`), CORS, and live SSE streaming.
+- An **Interactive Visual Dashboard** (`GET /` and `GET /dashboard`) for ambient real-time health monitoring.
 - A **Python SDK library** embedded directly into LangGraph, AutoGen, or custom agent loops.
 
 ---
@@ -65,7 +68,7 @@ Context Guard can be deployed as:
                   └─────────────────┬─────────────────┘
                                     ▼
                      Forwarded Upstream Request
-               (e.g., OpenAI, Anthropic, vLLM, Ollama)
+               (Groq, OpenRouter, OpenAI, Ollama, vLLM)
                                     │
                                     ▼
                Telemetry Headers Injected on Response:
@@ -76,50 +79,121 @@ Context Guard can be deployed as:
 
 ---
 
-## 3. Quickstart Guide
+## 3. Quickstart & Installation
 
-### Installation
+### Option 1: Zero-Install via `uvx` (Fastest)
+
+Run the MCP server or proxy directly without installing anything permanently:
 
 ```bash
-# Clone the repository
-git clone https://github.com/your-org/context-guard.git
-cd context-guard
+# Run MCP server directly
+uvx context-guards-mcp
 
-# Install dependencies using uv
-uv sync --all-extras
+# Or run the reverse proxy directly
+uvx --from context-guards context-guard
+```
+
+### Option 2: Install via pip or uv
+
+```bash
+# Install from PyPI
+pip install context-guards
+
+# Or with uv
+uv add context-guards
+```
+
+### Option 3: Run via Docker (Multi-Arch)
+
+```bash
+# Run the pre-built multi-arch image from GHCR
+docker run -d -p 8080:8080 \
+  -e OPENAI_BASE_URL="https://api.groq.com/openai/v1" \
+  -e GROQ_API_KEY="gsk_..." \
+  ghcr.io/sandeep-hipparagi/context-guard:v0.1.0
 ```
 
 ---
 
-### Option A: Running as an MCP Server
+## 4. IDE & Editor Integration (MCP Server)
 
-Context Guard natively implements the **Model Context Protocol (MCP)**, exposing context inspection and ledger generation tools directly to IDEs like **Cursor**, **Claude Code**, and **Gemini CLI**.
+Context Guard natively implements the **Model Context Protocol (MCP)**, exposing context inspection and ledger generation tools directly to modern AI-enabled IDEs and terminals.
 
-#### Tools Provided:
+### Provided MCP Tools & Prompts:
 - `inspect_context_health`: Evaluates conversation messages for failure modes and returns a standardized `HealthReport`.
 - `compress_context_buffer`: Automatically compresses bloated older context into a State Ledger.
 - `generate_state_ledger`: Extracts goals, hard constraints, active variables, and pending tasks.
 - `context_audit`: Prompt template instructing an LLM to self-audit its context health.
 
-#### Cursor Configuration (`~/.cursor/mcp.json` or project `.cursor/mcp.json`):
+---
+
+### Configuration by IDE:
+
+#### 1. Cursor (`.cursor/mcp.json` or `~/.cursor/mcp.json`)
 ```json
 {
   "mcpServers": {
     "context-guard": {
-      "command": "uv",
-      "args": ["run", "--directory", "/absolute/path/to/context-guard", "context-guard-mcp"]
+      "command": "uvx",
+      "args": ["context-guards-mcp"]
     }
   }
 }
 ```
 
-#### Claude Desktop Configuration (`claude_desktop_config.json`):
+#### 2. Claude Desktop
+- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+
 ```json
 {
   "mcpServers": {
     "context-guard": {
-      "command": "uv",
-      "args": ["run", "--directory", "/path/to/context-guard", "context-guard-mcp"]
+      "command": "uvx",
+      "args": ["context-guards-mcp"]
+    }
+  }
+}
+```
+
+#### 3. Claude Code CLI (Terminal)
+Add Context Guard to your Claude Code CLI in one command:
+```bash
+claude mcp add context-guard -- uvx context-guards-mcp
+```
+
+#### 4. Windsurf (Codeium) (`~/.codeium/windsurf/mcp_config.json`)
+```json
+{
+  "mcpServers": {
+    "context-guard": {
+      "command": "uvx",
+      "args": ["context-guards-mcp"]
+    }
+  }
+}
+```
+
+#### 5. Zed Editor (`~/.config/zed/settings.json`)
+```json
+{
+  "experimental.context_servers": {
+    "context-guard": {
+      "command": "uvx",
+      "args": ["context-guards-mcp"]
+    }
+  }
+}
+```
+
+#### 6. VS Code (Cline / Roo Code / Continue)
+In Cline / Roo Code `mcpSettings.json`:
+```json
+{
+  "mcpServers": {
+    "context-guard": {
+      "command": "uvx",
+      "args": ["context-guards-mcp"]
     }
   }
 }
@@ -127,40 +201,40 @@ Context Guard natively implements the **Model Context Protocol (MCP)**, exposing
 
 ---
 
-### Option B: Running as a Drop-in Reverse Proxy
+## 5. Running as a Drop-in Reverse Proxy
 
-Run Context Guard in front of Groq, OpenRouter, OpenAI, vLLM, Ollama, or any OpenAI-compatible API. By default, it routes to **Groq** (`https://api.groq.com/openai/v1`), allowing you to use high-throughput Groq API keys (`gsk_...`) and models like `llama-3.1-8b-instant` or `llama-3.3-70b-versatile`.
+Run Context Guard in front of **Groq**, **OpenRouter**, **OpenAI**, **Ollama**, **vLLM**, or any OpenAI-compatible API.
 
-Point your agent harness or client's `base_url` to `http://localhost:8080/v1`.
+By default, it routes to **Groq** (`https://api.groq.com/openai/v1`), allowing high-throughput Groq API keys (`gsk_...`) and models like `llama-3.1-8b-instant` or `llama-3.3-70b-versatile`.
 
-#### Running via CLI:
+### Starting the Proxy:
 ```bash
-# Configure Groq (or override with any OpenAI-compatible upstream)
+# Set your target upstream base URL and key
 export OPENAI_BASE_URL="https://api.groq.com/openai/v1"
 export GROQ_API_KEY="gsk_..."
 
-# Launch the proxy (listening on 0.0.0.0:8080)
-uv run context-guard
+# Start proxy (listening on http://0.0.0.0:8080)
+context-guard
 ```
 
-#### Running via Docker / Docker Compose:
-```bash
-# Launch container
-docker compose up -d
+### Supported Upstream Targets:
+| Provider | `OPENAI_BASE_URL` | Auth Header / Key |
+| :--- | :--- | :--- |
+| **Groq (Default)** | `https://api.groq.com/openai/v1` | `GROQ_API_KEY="gsk_..."` |
+| **OpenRouter** | `https://openrouter.ai/api/v1` | `OPENROUTER_API_KEY="sk-or-v1-..."` |
+| **OpenAI** | `https://api.openai.com/v1` | `OPENAI_API_KEY="sk-..."` |
+| **Ollama (Local)** | `http://localhost:11434/v1` | Optional |
+| **vLLM (Local)** | `http://localhost:8000/v1` | Optional |
+| **LM Studio (Local)** | `http://localhost:1234/v1` | Optional |
 
-# Verify health check
-curl http://localhost:8080/health
-# {"status":"ok","service":"context-guard"}
-```
-
-#### Client Configuration Example:
+### Client Configuration (OpenAI Python SDK):
 ```python
 from openai import OpenAI
 
-# Point client to Context Guard reverse proxy
+# Point client directly to Context Guard reverse proxy
 client = OpenAI(
     base_url="http://localhost:8080/v1",
-    api_key="gsk_...",  # forwarded intact to Groq
+    api_key="gsk_...",  # forwarded intact to upstream
 )
 
 response = client.chat.completions.create(
@@ -175,28 +249,49 @@ response = client.chat.completions.create(
 
 ---
 
-### Option C: Python Library SDK Integration
+## 6. Interactive Visual Diagnostic Dashboard
 
-You can integrate Context Guard directly into custom agent loops or LangGraph orchestrators:
+Context Guard embeds a dependency-free, ambient visual diagnostic dashboard accessible at:
+👉 **`http://localhost:8080/`** or **`http://localhost:8080/dashboard`**
+
+### Dashboard Capabilities:
+- **Live Radial Health Gauge**: Dynamic penalty score (0–100) and color-coded status (`🟢 Healthy`, `🟡 Degraded`, `🔴 Critical`).
+- **Failure Mode Badges**: Real-time breakdown of detected Poisoning, Distraction, Confusion, and Directive Clash issues.
+- **State-Ledger Preview**: Visual cards displaying the Pinned Goal, Hard Constraints, Active State, and Token Reduction metrics.
+- **Interactive Payload Tester**: Test sample payloads or paste live conversation JSON to visualize evaluation and compression immediately.
+
+---
+
+## 7. Python Library SDK Integration
+
+Context Guard can be embedded directly into custom agent loops, LangGraph, AutoGen, or CrewAI:
 
 ```python
 import asyncio
-from context_guard.evaluators import DeterministicEvaluator
 from context_guard.compressors import ContextCompressor
+from context_guard.evaluators import DeterministicEvaluator
 
 
 async def main():
     messages = [
-        {"role": "user", "content": "Goal: Build high-throughput event pipeline with Redis."},
+        {
+            "role": "user",
+            "content": "Goal: Build high-throughput event pipeline with Redis.",
+        },
         {"role": "assistant", "content": "Setting up consumer group... " * 15},
         {"role": "user", "content": "Never use blocking keys."},
-        {"role": "assistant", "content": "Updated code without blocking keys... " * 15},
+        {
+            "role": "assistant",
+            "content": "Updated code without blocking keys... " * 15,
+        },
         {"role": "user", "content": "What is our current memory consumption?"},
     ]
 
     # 1. Evaluate context health
     evaluator = DeterministicEvaluator()
-    report = evaluator.evaluate(messages, pinned_constraints=["Never use blocking keys"])
+    report = evaluator.evaluate(
+        messages, pinned_constraints=["Never use blocking keys"]
+    )
     print(f"Status: {report.status.value} (Score: {report.penalty_score}/100)")
     print(f"Action: {report.recommended_action}")
 
@@ -217,34 +312,48 @@ asyncio.run(main())
 
 ---
 
-## 4. Telemetry Header Reference
+## 8. Telemetry Header Reference
 
-Every response forwarded through the reverse proxy includes real-time telemetry headers:
+Every response forwarded through the reverse proxy includes real-time telemetry headers (with full CORS support for browser clients):
 
 | Header | Example Value | Description |
 | :--- | :--- | :--- |
-| `X-Context-Health-Status` | `🟢 Healthy`<br>`🟡 Degraded`<br>`🔴 Critical` | Categorical health status of the conversation history prior to upstream forwarding. |
+| `X-Context-Health-Status` | `🟢 Healthy`<br>`🟡 Degraded`<br>`🔴 Critical` | Categorical health status of conversation history prior to upstream forwarding. |
 | `X-Context-Penalty-Score` | `0` to `100` | Cumulative penalty score calculated across all detected failure modes. |
 | `X-Context-Tokens-Saved` | `384` | Estimated token count saved by noise stripping and State Ledger compression ($0$ if uncompressed). |
 
 ---
 
-## 5. Development & Testing
+## 9. Interactive Terminal Simulation
+
+A standalone simulation script is included to test multi-turn degradation and state-ledger compression locally without needing an API key:
 
 ```bash
+python examples/simulate_session.py
+```
+
+---
+
+## 10. Development & Testing
+
+```bash
+# Clone the repository
+git clone https://github.com/Sandeep-Hipparagi/context-guard.git
+cd context-guard
+
+# Install dependencies using uv
+uv sync --extra dev
+
 # Run full test suite (evaluators, compressors, proxy, mcp)
 uv run pytest
 
 # Check formatting and style
 uv run ruff check .
 uv run ruff format --check .
-
-# Auto-fix formatting
-uv run ruff format .
 ```
 
 ---
 
-## 6. License
+## 11. License
 
 Context Guard is open-source software licensed under the [Apache-2.0 License](LICENSE).

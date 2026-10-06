@@ -432,3 +432,59 @@ async def test_api_inspect_endpoint():
     assert "state_ledger" in data
     assert "metrics" in data
     assert data["health_report"]["status"] == "🟢 Healthy"
+
+
+def test_models_endpoint():
+    """Verify GET /v1/models and GET /models return OpenAI-compatible model list."""
+    app = create_app()
+    with TestClient(app) as client:
+        res = client.get("/v1/models")
+        assert res.status_code == 200
+        data = res.json()
+        assert data.get("object") == "list"
+        model_ids = [m["id"] for m in data.get("data", [])]
+        assert "llama-3.1-8b-instant" in model_ids
+
+        res2 = client.get("/models")
+        assert res2.status_code == 200
+
+
+def test_cors_headers():
+    """Verify CORS middleware exposes custom telemetry headers to browser clients."""
+    app = create_app()
+    with TestClient(app) as client:
+        res = client.options(
+            "/v1/models",
+            headers={
+                "Origin": "http://localhost:3000",
+                "Access-Control-Request-Method": "GET",
+            },
+        )
+        assert res.status_code == 200
+        assert res.headers.get("access-control-allow-origin") in ("*", "http://localhost:3000")
+
+
+@pytest.mark.asyncio
+async def test_structured_content_blocks():
+    """Verify requests with multimodal/structured content blocks are handled seamlessly."""
+    app = create_app()
+    request_messages = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "Goal: Build a cache service."},
+                {"type": "text", "text": "Never use eval."},
+            ],
+        },
+        {"role": "assistant", "content": "Configuring Redis cache."},
+    ]
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://testserver"
+    ) as client:
+        res = await client.post("/api/inspect", json={"messages": request_messages})
+
+    assert res.status_code == 200
+    assert res.headers["X-Context-Health-Status"] == "🟢 Healthy"
+    data = res.json()
+    assert data["state_ledger"]["pinned_goal"] != ""

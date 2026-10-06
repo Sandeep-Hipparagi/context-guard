@@ -7,6 +7,7 @@ from context_guard.core.models import (
     FailureModeDetail,
     HealthReport,
     HealthStatus,
+    extract_text_content,
 )
 
 REJECTION_PATTERN = re.compile(
@@ -147,13 +148,7 @@ class DeterministicEvaluator:
             if not isinstance(msg, dict):
                 continue
             role = str(msg.get("role", "") or "")
-            content = msg.get("content", "")
-            if content is None:
-                content_str = ""
-            elif isinstance(content, str):
-                content_str = content
-            else:
-                content_str = str(content)
+            content_str = extract_text_content(msg.get("content"))
             total_chars += len(role) + len(content_str)
         return max(0, (total_chars + 3) // 4)
 
@@ -164,13 +159,7 @@ class DeterministicEvaluator:
             if not isinstance(m, dict):
                 continue
             role = str(m.get("role", "") or "").lower().strip()
-            content = m.get("content", "")
-            if content is None:
-                content_str = ""
-            elif isinstance(content, str):
-                content_str = content
-            else:
-                content_str = str(content)
+            content_str = extract_text_content(m.get("content"))
             normalized.append({"role": role, "content": content_str, "index": idx})
         return normalized
 

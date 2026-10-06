@@ -5,6 +5,7 @@ from context_guard.core.models import (
     HealthReport,
     HealthStatus,
     StateLedger,
+    extract_text_content,
 )
 
 __all__ = [
@@ -12,4 +13,5 @@ __all__ = [
     "HealthReport",
     "HealthStatus",
     "StateLedger",
+    "extract_text_content",
 ]

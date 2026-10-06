@@ -10,6 +10,7 @@ except ImportError:
     from mcp.server.fastmcp import FastMCP  # type: ignore[no-redef]
 
 from context_guard.compressors import ContextCompressor, HeuristicLedgerExtractor
+from context_guard.core.models import extract_text_content
 from context_guard.evaluators import DeterministicEvaluator
 
 mcp_server = FastMCP(
@@ -32,7 +33,7 @@ async def inspect_context_health(
     """Evaluate context health and return standardized HealthReport dictionary."""
     evaluator = DeterministicEvaluator()
     sanitized: list[dict[str, str]] = [
-        {"role": str(m.get("role", "")), "content": str(m.get("content", ""))}
+        {"role": str(m.get("role", "")), "content": extract_text_content(m.get("content"))}
         for m in messages
         if isinstance(m, dict)
     ]
@@ -51,7 +52,7 @@ async def compress_context_buffer(
     """Compress older turns into State Ledger while preserving recent turns."""
     compressor = ContextCompressor(preserve_recent_turns=preserve_recent_turns)
     sanitized: list[dict[str, str]] = [
-        {"role": str(m.get("role", "")), "content": str(m.get("content", ""))}
+        {"role": str(m.get("role", "")), "content": extract_text_content(m.get("content"))}
         for m in messages
         if isinstance(m, dict)
     ]
@@ -80,7 +81,7 @@ async def generate_state_ledger(
     """Extract StateLedger and format its markdown representation."""
     extractor = HeuristicLedgerExtractor()
     sanitized: list[dict[str, str]] = [
-        {"role": str(m.get("role", "")), "content": str(m.get("content", ""))}
+        {"role": str(m.get("role", "")), "content": extract_text_content(m.get("content"))}
         for m in messages
         if isinstance(m, dict)
     ]

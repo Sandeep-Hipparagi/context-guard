@@ -8,7 +8,7 @@ from context_guard.compressors.extractor import (
     HeuristicLedgerExtractor,
 )
 from context_guard.compressors.models import CompressedContext
-from context_guard.core.models import StateLedger
+from context_guard.core.models import StateLedger, extract_text_content
 
 ANSI_ESCAPE_PATTERN = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
 
@@ -38,8 +38,7 @@ def estimate_tokens_fast(messages: list[dict[str, Any]]) -> int:
         if not isinstance(msg, dict):
             continue
         role = str(msg.get("role", "") or "")
-        content = msg.get("content", "")
-        content_str = content if isinstance(content, str) else str(content or "")
+        content_str = extract_text_content(msg.get("content"))
         total_chars += len(role) + len(content_str)
     return max(0, (total_chars + 3) // 4)
 
@@ -188,18 +187,21 @@ class ContextCompressor:
         system_messages = [m for m in messages if m.get("role") == "system"]
         conv_turns = [m for m in messages if m.get("role") != "system"]
         system_directive = "\n\n".join(
-            m.get("content", "") for m in system_messages if m.get("content")
+            extract_text_content(m.get("content")) for m in system_messages if m.get("content")
         )
 
         # Clean conversation turns with noise stripping and line collapsing
         cleaned_conv = [
-            {"role": m.get("role", ""), "content": self.strip_noise(m.get("content", ""))}
+            {
+                "role": str(m.get("role", "")),
+                "content": self.strip_noise(extract_text_content(m.get("content"))),
+            }
             for m in conv_turns
         ]
 
         # Skip ledger extraction if conversation turns are within preservation limit
         if len(conv_turns) <= self.preserve_recent_turns:
-            ledger = existing_ledger or StateLedger(pinned_goal="")
+            ledger = existing_ledger or await self.extractor.extract_ledger(cleaned_conv)
             temp_payload: list[dict[str, str]] = []
             if system_directive:
                 temp_payload.append({"role": "system", "content": system_directive})
@@ -225,11 +227,17 @@ class ContextCompressor:
         recent_raw_turns = conv_turns[-self.preserve_recent_turns :]
 
         cleaned_older = [
-            {"role": m.get("role", ""), "content": self.strip_noise(m.get("content", ""))}
+            {
+                "role": str(m.get("role", "")),
+                "content": self.strip_noise(extract_text_content(m.get("content"))),
+            }
             for m in older_turns
         ]
         cleaned_recent = [
-            {"role": m.get("role", ""), "content": self.strip_noise(m.get("content", ""))}
+            {
+                "role": str(m.get("role", "")),
+                "content": self.strip_noise(extract_text_content(m.get("content"))),
+            }
             for m in recent_raw_turns
         ]
 

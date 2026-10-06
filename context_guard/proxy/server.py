@@ -8,6 +8,7 @@ from typing import Any
 
 import httpx
 from fastapi import FastAPI, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 
 from context_guard.compressors import ContextCompressor
@@ -64,12 +65,79 @@ def create_app(
     if client is not None:
         app.state.client = client
 
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+        expose_headers=[
+            "x-context-health-status",
+            "x-context-penalty-score",
+            "x-context-tokens-saved",
+        ],
+    )
+
     evaluator = DeterministicEvaluator()
 
     @app.get("/health")
     async def health() -> dict[str, str]:
         """Health check endpoint."""
         return {"status": "ok", "service": "context-guard"}
+
+    @app.get("/v1/models")
+    @app.get("/models")
+    async def list_models(request: Request) -> Response:
+        """List available models, proxying upstream or returning default configuration."""
+        upstream_base = proxy_config.UPSTREAM_BASE_URL.rstrip("/")
+        upstream_url = f"{upstream_base}/models"
+        auth_header = request.headers.get("authorization")
+        if not auth_header and proxy_config.UPSTREAM_API_KEY:
+            auth_header = f"Bearer {proxy_config.UPSTREAM_API_KEY}"
+
+        headers = {"Content-Type": "application/json"}
+        if auth_header:
+            headers["Authorization"] = auth_header
+
+        http_client: httpx.AsyncClient | None = getattr(request.app.state, "client", None)
+        if http_client is None:
+            http_client = httpx.AsyncClient(timeout=httpx.Timeout(10.0, connect=5.0))
+
+        try:
+            upstream_resp = await http_client.get(upstream_url, headers=headers)
+            if upstream_resp.status_code == 200:
+                return Response(
+                    content=upstream_resp.content,
+                    status_code=200,
+                    media_type="application/json",
+                )
+        except Exception:
+            pass
+
+        fallback_data = {
+            "object": "list",
+            "data": [
+                {
+                    "id": proxy_config.DEFAULT_MODEL,
+                    "object": "model",
+                    "created": 1700000000,
+                    "owned_by": "context-guard",
+                },
+                {
+                    "id": "llama-3.3-70b-versatile",
+                    "object": "model",
+                    "created": 1700000000,
+                    "owned_by": "groq",
+                },
+                {
+                    "id": "llama-3.1-8b-instant",
+                    "object": "model",
+                    "created": 1700000000,
+                    "owned_by": "groq",
+                },
+            ],
+        }
+        return JSONResponse(content=fallback_data, status_code=200)
 
     @app.get("/", response_class=HTMLResponse)
     @app.get("/dashboard", response_class=HTMLResponse)

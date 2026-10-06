@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from context_guard.core.models import StateLedger
+from context_guard.core.models import StateLedger, extract_text_content
 
 CONSTRAINT_PATTERN = re.compile(
     r"\b(?:don't|do not|never|must not|cannot|should not|"
@@ -57,7 +57,8 @@ class HeuristicLedgerExtractor(BaseLedgerExtractor):
             # First user message is commonly the primary goal
             for msg in history:
                 if msg.get("role") == "user" and msg.get("content"):
-                    first_line = msg["content"].strip().split("\n")[0]
+                    content_str = extract_text_content(msg.get("content"))
+                    first_line = content_str.strip().split("\n")[0]
                     pinned_goal = first_line[:120].strip()
                     break
 
@@ -66,7 +67,7 @@ class HeuristicLedgerExtractor(BaseLedgerExtractor):
             list(existing_ledger.hard_constraints) if existing_ledger else []
         )
         for msg in history:
-            content = msg.get("content", "")
+            content = extract_text_content(msg.get("content"))
             for match in CONSTRAINT_PATTERN.finditer(content):
                 constraint = match.group(0).strip()
                 if len(constraint) > 5 and constraint not in hard_constraints:
@@ -78,7 +79,7 @@ class HeuristicLedgerExtractor(BaseLedgerExtractor):
         detected_files: set[str] = set(active_state.get("files", []))
 
         for msg in history:
-            content = msg.get("content", "")
+            content = extract_text_content(msg.get("content"))
             for tech in TECH_PATTERN.findall(content):
                 detected_tech.add(tech)
             for file_path in FILE_PATH_PATTERN.findall(content):
@@ -96,7 +97,7 @@ class HeuristicLedgerExtractor(BaseLedgerExtractor):
         pending_questions: list[str] = []
         user_msgs = [m for m in history if m.get("role") == "user" and m.get("content")]
         if user_msgs:
-            last_content = user_msgs[-1]["content"].strip()
+            last_content = extract_text_content(user_msgs[-1]["content"]).strip()
             triggers = ["what", "how", "why", "can", "could", "please"]
             if "?" in last_content or any(last_content.lower().startswith(w) for w in triggers):
                 pending_questions.append(last_content.split("\n")[0][:120])
