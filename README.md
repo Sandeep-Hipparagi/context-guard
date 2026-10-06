@@ -289,9 +289,7 @@ async def main():
 
     # 1. Evaluate context health
     evaluator = DeterministicEvaluator()
-    report = evaluator.evaluate(
-        messages, pinned_constraints=["Never use blocking keys"]
-    )
+    report = evaluator.evaluate(messages, pinned_constraints=["Never use blocking keys"])
     print(f"Status: {report.status.value} (Score: {report.penalty_score}/100)")
     print(f"Action: {report.recommended_action}")
 
