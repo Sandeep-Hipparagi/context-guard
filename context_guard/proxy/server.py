@@ -67,8 +67,11 @@ def create_app(
 
     app.add_middleware(
         CORSMiddleware,
+        # Credential-bearing requests against a wildcard origin are rejected by
+        # browsers and enable CSRF-style abuse; the proxy exchanges only
+        # Authorization headers, so cookie credentials are never enabled.
         allow_origins=["*"],
-        allow_credentials=True,
+        allow_credentials=False,
         allow_methods=["*"],
         allow_headers=["*"],
         expose_headers=[
