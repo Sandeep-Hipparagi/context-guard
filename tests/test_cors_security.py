@@ -4,7 +4,6 @@ Guards against reintroducing the wildcard-origin + allow-credentials
 combination (CSRF-style abuse surface; browsers reject it outright).
 """
 
-import pytest
 from fastapi.middleware.cors import CORSMiddleware
 
 from context_guard.proxy.server import app
