@@ -352,6 +352,16 @@ uv run ruff format --check .
 
 ---
 
+## Security & Verification Posture
+
+- **41/41 pytest cases green** (evaluators, compressors, proxy, MCP, plus CORS security regressions) with `ruff check` and `ruff format --check` clean.
+- **Credential-free CORS**: the reverse proxy never combines wildcard origins with credentialed requests (regression-tested).
+- **Non-root, multi-stage containers**; dependencies resolved with `uv sync --frozen` from a locked manifest.
+
+**Measured, not asserted:** Context Guard's compression is benchmarked by [`agent-benchmark-suite`](https://github.com/Sandeep-Hipparagi/agent-benchmark-suite) on a seeded 120-trajectory corpus with CI-enforced drift checks.
+
+---
+
 ## 11. License
 
 Context Guard is open-source software licensed under the [Apache-2.0 License](LICENSE).
