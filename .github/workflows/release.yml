@@ -1,9 +1,10 @@
 name: Release & Distribution
 
-"on":
+on:
   push:
     tags:
       - "v*.*.*"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -93,6 +94,11 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest
+          labels: |
+            org.opencontainers.image.source=https://github.com/Sandeep-Hipparagi/context-guard
+            org.opencontainers.image.description=Dual-layer context health guardrail and state-ledger compression: MCP server, OpenAI-compatible proxy, and Python SDK for agent harnesses
+            org.opencontainers.image.licenses=MIT
+            org.opencontainers.image.title=Context Guard
 
       - name: Build and push multi-arch Docker image
         uses: docker/build-push-action@v6

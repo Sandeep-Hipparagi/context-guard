@@ -48,6 +48,13 @@ COPY --from=builder --chown=appuser:appuser /app/README.md /app/README.md
 # Switch to unprivileged user
 USER appuser
 
+# OCI labels for GitHub Packages repository linking
+LABEL org.opencontainers.image.source="https://github.com/Sandeep-Hipparagi/context-guard" \
+      org.opencontainers.image.description="Dual-layer context health guardrail and state-ledger compression: MCP server, OpenAI-compatible proxy, and Python SDK for agent harnesses" \
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.title="Context Guard" \
+      org.opencontainers.image.version="0.1.0"
+
 # Expose default reverse-proxy port
 EXPOSE 8080
 
