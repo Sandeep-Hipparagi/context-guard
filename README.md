@@ -9,6 +9,12 @@
 
 > **Dual-layer Context Health Guardrail and Adaptive State-Ledger Compression Engine for LLM Agent Harnesses, IDEs, and Terminals.**
 
+## Product Walkthrough & Architecture Demo
+
+https://github.com/Sandeep-Hipparagi/context-guard/releases/download/media-v1/brag.mp4
+
+[![context-guard demo](assets/media/preview.webp)](https://github.com/Sandeep-Hipparagi/context-guard/releases/tag/media-v1)
+
 ---
 
 ## 1. Executive Summary
